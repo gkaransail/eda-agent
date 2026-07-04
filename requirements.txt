@@ -1,0 +1,28 @@
+# Core pipeline
+langgraph>=0.2.0
+pyyaml>=6.0.0
+langchain-core>=0.3.0
+pandas>=2.2.0
+scipy>=1.13.0
+numpy>=1.26.0
+openpyxl>=3.1.0
+xlrd>=2.0.1
+python-dotenv>=1.0.0
+
+# LLM providers — install only what you use
+langchain-groq>=0.2.0          # Groq (Llama, Mixtral) — free tier, fastest
+langchain-together>=0.2.0      # Together AI (Llama, Qwen, DBRX)
+langchain-openai>=0.2.0        # OpenRouter (100+ open models via OpenAI-compat API)
+langchain-ollama>=0.2.0        # Ollama — fully local, no API key needed
+langchain-huggingface>=0.1.0   # HuggingFace Inference API
+langchain-anthropic>=0.3.0     # Anthropic Claude — optional
+
+# Frontend
+streamlit>=1.35.0
+matplotlib>=3.9.0
+plotly>=5.22.0
+
+# Dev
+black>=24.0.0
+isort>=5.13.0
+pytest>=8.0.0

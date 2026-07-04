@@ -1,0 +1,61 @@
+# LLM Fallback Hierarchy
+# Models are tried top-to-bottom — first success wins.
+# Comment out any provider you don't have a key for.
+# Reorder to change priority — no code changes needed.
+
+providers:
+  # ── Tier 1: Groq (fastest free inference) ─────────────────────────────────
+  - name: groq-llama-70b
+    provider: groq
+    model: llama-3.1-70b-versatile
+    api_key_env: GROQ_API_KEY
+
+  - name: groq-llama-8b
+    provider: groq
+    model: llama-3.1-8b-instant
+    api_key_env: GROQ_API_KEY
+
+  - name: groq-mixtral
+    provider: groq
+    model: mixtral-8x7b-32768
+    api_key_env: GROQ_API_KEY
+
+  # ── Tier 2: Together AI (good free credits on signup) ─────────────────────
+  - name: together-llama-70b
+    provider: together
+    model: meta-llama/Llama-3-70b-chat-hf
+    api_key_env: TOGETHER_API_KEY
+
+  - name: together-qwen
+    provider: together
+    model: Qwen/Qwen2-72B-Instruct
+    api_key_env: TOGETHER_API_KEY
+
+  # ── Tier 3: OpenRouter (aggregates 100+ models, pay-per-use) ──────────────
+  - name: openrouter-mixtral
+    provider: openrouter
+    model: mistralai/mixtral-8x7b-instruct
+    api_key_env: OPENROUTER_API_KEY
+
+  - name: openrouter-llama
+    provider: openrouter
+    model: meta-llama/llama-3.1-70b-instruct:free
+    api_key_env: OPENROUTER_API_KEY
+
+  # ── Tier 4: HuggingFace Inference API (free tier, slower) ─────────────────
+  - name: hf-mistral
+    provider: huggingface
+    model: mistralai/Mistral-7B-Instruct-v0.3
+    api_key_env: HF_API_KEY
+
+  # ── Tier 5: Ollama (local fallback — always available if running) ──────────
+  - name: ollama-llama3
+    provider: ollama
+    model: llama3.1
+    # no api_key_env needed
+
+  # ── Tier 6: Anthropic (optional paid fallback) ────────────────────────────
+  # - name: anthropic-sonnet
+  #   provider: anthropic
+  #   model: claude-sonnet-4-6
+  #   api_key_env: ANTHROPIC_API_KEY
