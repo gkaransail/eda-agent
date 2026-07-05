@@ -396,6 +396,152 @@ with tab_eda:
                                           showlegend=False, coloraxis_showscale=False)
                         st.plotly_chart(fig, use_container_width=True)
 
+    # ── 14: CDF ───────────────────────────────────────────────────────────────
+    if num_cols:
+        st.divider()
+        st.subheader("14. Cumulative Distribution Function (CDF)")
+        cdf_col = st.selectbox("Select column for CDF", num_cols, key="cdf_col")
+        cdf_data = cleaned_df[cdf_col].dropna().sort_values()
+        cdf_y = np.arange(1, len(cdf_data) + 1) / len(cdf_data)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=cdf_data, y=cdf_y, mode="lines",
+                                 line=dict(color="#4C78A8", width=2),
+                                 fill="tozeroy", fillcolor="rgba(76,120,168,0.15)"))
+        fig.update_layout(title=f"CDF — {cdf_col}", xaxis_title=cdf_col,
+                          yaxis_title="Cumulative Probability", yaxis_range=[0, 1],
+                          margin=dict(l=0, r=0, t=40, b=0), height=380)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 15: Q-Q Plot (normality check) ────────────────────────────────────────
+    if num_cols:
+        st.divider()
+        st.subheader("15. Q-Q Plot (Normality Check)")
+        qq_col = st.selectbox("Select column for Q-Q plot", num_cols, key="qq_col")
+        from scipy import stats as scipy_stats
+        qq_data = cleaned_df[qq_col].dropna()
+        (theoretical, sample), _ = scipy_stats.probplot(qq_data)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=theoretical, y=sample, mode="markers",
+                                 marker=dict(color="#4C78A8", size=5, opacity=0.7),
+                                 name="Data"))
+        mn, mx = min(theoretical), max(theoretical)
+        slope, intercept, *_ = scipy_stats.linregress(theoretical, sample)
+        fig.add_trace(go.Scatter(x=[mn, mx], y=[mn * slope + intercept, mx * slope + intercept],
+                                 mode="lines", line=dict(color="#E45756", dash="dash"),
+                                 name="Normal reference"))
+        fig.update_layout(title=f"Q-Q Plot — {qq_col} (closer to line = more normal)",
+                          xaxis_title="Theoretical Quantiles", yaxis_title="Sample Quantiles",
+                          margin=dict(l=0, r=0, t=40, b=0), height=420)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 16: 2D Density Heatmap ────────────────────────────────────────────────
+    if len(num_cols) >= 2:
+        st.divider()
+        st.subheader("16. 2D Density Heatmap")
+        col_da, col_db = st.columns(2)
+        with col_da:
+            dens_x = st.selectbox("X axis", num_cols, key="dens_x")
+        with col_db:
+            remaining = [c for c in num_cols if c != dens_x]
+            dens_y = st.selectbox("Y axis", remaining, key="dens_y")
+        fig = px.density_heatmap(cleaned_df, x=dens_x, y=dens_y,
+                                 color_continuous_scale="Viridis",
+                                 marginal_x="histogram", marginal_y="histogram",
+                                 title=f"2D Density — {dens_x} vs {dens_y}")
+        fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=480)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 17: Bubble Chart ──────────────────────────────────────────────────────
+    if len(num_cols) >= 3:
+        st.divider()
+        st.subheader("17. Bubble Chart (3 Variables)")
+        col_ba, col_bb, col_bc = st.columns(3)
+        with col_ba:
+            bub_x = st.selectbox("X axis", num_cols, key="bub_x")
+        with col_bb:
+            bub_y = st.selectbox("Y axis", [c for c in num_cols if c != bub_x], key="bub_y")
+        with col_bc:
+            bub_sz = st.selectbox("Bubble size", [c for c in num_cols if c not in [bub_x, bub_y]], key="bub_sz")
+        bub_color = cat_cols[0] if cat_cols else None
+        fig = px.scatter(cleaned_df, x=bub_x, y=bub_y, size=bub_sz,
+                         color=bub_color, size_max=40, opacity=0.7,
+                         title=f"{bub_x} vs {bub_y} (size = {bub_sz})")
+        fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=460)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 18: Cross-tab Heatmap (cat vs cat) ────────────────────────────────────
+    if len(cat_cols) >= 2:
+        st.divider()
+        st.subheader("18. Cross-tab Heatmap (Category × Category)")
+        col_ca, col_cb = st.columns(2)
+        with col_ca:
+            ct_row = st.selectbox("Row category", cat_cols, key="ct_row")
+        with col_cb:
+            ct_col = st.selectbox("Column category", [c for c in cat_cols if c != ct_row], key="ct_col")
+        top_rows = cleaned_df[ct_row].value_counts().head(10).index
+        top_cols = cleaned_df[ct_col].value_counts().head(10).index
+        ct_df = cleaned_df[cleaned_df[ct_row].isin(top_rows) & cleaned_df[ct_col].isin(top_cols)]
+        ct = pd.crosstab(ct_df[ct_row], ct_df[ct_col])
+        fig = px.imshow(ct, text_auto=True, color_continuous_scale="Blues",
+                        title=f"Co-occurrence: {ct_row} × {ct_col}")
+        fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=420)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 19: Parallel Coordinates ──────────────────────────────────────────────
+    if len(num_cols) >= 3:
+        st.divider()
+        st.subheader("19. Parallel Coordinates Plot")
+        par_cols = num_cols[:8]
+        par_df = cleaned_df[par_cols].dropna()
+        if len(par_df) > 500:
+            par_df = par_df.sample(500, random_state=42)
+        color_col_par = num_cols[0]
+        fig = px.parallel_coordinates(par_df, dimensions=par_cols, color=color_col_par,
+                                      color_continuous_scale="Viridis",
+                                      title="Parallel Coordinates (sample of 500 rows)")
+        fig.update_layout(margin=dict(l=80, r=80, t=60, b=20), height=460)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 20: Mean ± Std Error Bar Chart ────────────────────────────────────────
+    if cat_cols and num_cols:
+        st.divider()
+        st.subheader("20. Mean ± Std by Category")
+        col_ea, col_eb = st.columns(2)
+        with col_ea:
+            err_cat = st.selectbox("Category", cat_cols, key="err_cat")
+        with col_eb:
+            err_num = st.selectbox("Numeric", num_cols, key="err_num")
+        top_cats_err = cleaned_df[err_cat].value_counts().head(12).index
+        grp = (cleaned_df[cleaned_df[err_cat].isin(top_cats_err)]
+               .groupby(err_cat)[err_num].agg(["mean", "std"]).reset_index())
+        grp.columns = [err_cat, "Mean", "Std"]
+        grp = grp.sort_values("Mean", ascending=False)
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=grp[err_cat], y=grp["Mean"],
+                             error_y=dict(type="data", array=grp["Std"].fillna(0)),
+                             marker_color="#4C78A8", name="Mean ± Std"))
+        fig.update_layout(title=f"Mean ± Std of {err_num} by {err_cat}",
+                          xaxis_title=err_cat, yaxis_title=err_num,
+                          margin=dict(l=0, r=0, t=40, b=0), height=420)
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ── 21: Strip Plot ────────────────────────────────────────────────────────
+    if cat_cols and num_cols:
+        st.divider()
+        st.subheader("21. Strip Plot (All Data Points by Category)")
+        col_sa, col_sb = st.columns(2)
+        with col_sa:
+            strip_cat = st.selectbox("Category", cat_cols, key="strip_cat")
+        with col_sb:
+            strip_num = st.selectbox("Numeric", num_cols, key="strip_num")
+        top_cats_strip = cleaned_df[strip_cat].value_counts().head(10).index
+        strip_df = cleaned_df[cleaned_df[strip_cat].isin(top_cats_strip)]
+        fig = px.strip(strip_df, x=strip_cat, y=strip_num, color=strip_cat,
+                       title=f"All {strip_num} values by {strip_cat}",
+                       stripmode="overlay")
+        fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=420, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
     # ── Summary stats table ────────────────────────────────────────────────────
     summary = eda.get("summary_stats", {})
     if summary:
