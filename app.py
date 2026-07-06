@@ -86,6 +86,37 @@ all_outlier_idx: set = set()
 for col_data in outlier_cols.values():
     all_outlier_idx.update(col_data.get("iqr_outlier_indices", []))
 
+# ── Currency formatting helpers ────────────────────────────────────────────────
+_REVENUE_KW  = {"revenue", "sales", "total", "income", "earnings", "profit", "turnover", "gross", "net"}
+_CURRENCY_KW = _REVENUE_KW | {"price", "cost", "rate", "fee", "wage", "salary", "amount", "budget", "spend", "expense", "unit"}
+
+def _is_revenue_col(col: str) -> bool:
+    return any(kw in col.lower() for kw in _REVENUE_KW)
+
+def _is_currency_col(col: str) -> bool:
+    return any(kw in col.lower() for kw in _CURRENCY_KW)
+
+def _col_config(df: pd.DataFrame) -> dict:
+    cfg = {}
+    for col in df.select_dtypes(include="number").columns:
+        if _is_revenue_col(col):
+            cfg[col] = st.column_config.NumberColumn(col, format="$%.0f")
+        elif _is_currency_col(col):
+            cfg[col] = st.column_config.NumberColumn(col, format="$%.2f")
+    return cfg
+
+def _fmt_y(fig, col: str):
+    if _is_revenue_col(col):
+        fig.update_yaxes(tickprefix="$", tickformat=",.0f")
+    elif _is_currency_col(col):
+        fig.update_yaxes(tickprefix="$", tickformat=",.2f")
+
+def _fmt_x(fig, col: str):
+    if _is_revenue_col(col):
+        fig.update_xaxes(tickprefix="$", tickformat=",.0f")
+    elif _is_currency_col(col):
+        fig.update_xaxes(tickprefix="$", tickformat=",.2f")
+
 # ── Top metrics ────────────────────────────────────────────────────────────────
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.metric("Rows", shape.get("rows", "—"))
@@ -158,11 +189,11 @@ with tab_data:
     with col_a:
         st.subheader("Raw Data")
         if raw_df is not None:
-            st.dataframe(raw_df.head(100), use_container_width=True)
+            st.dataframe(raw_df.head(100), use_container_width=True, column_config=_col_config(raw_df))
     with col_b:
         st.subheader("Cleaned Data")
         if cleaned_df is not None:
-            st.dataframe(cleaned_df.head(100), use_container_width=True)
+            st.dataframe(cleaned_df.head(100), use_container_width=True, column_config=_col_config(cleaned_df))
 
     st.divider()
     col_c, col_d = st.columns(2)
@@ -201,12 +232,14 @@ with tab_eda:
             fig = px.histogram(cleaned_df, x=selected_num, nbins=40, marginal="rug",
                                title=f"Histogram — {selected_num}",
                                color_discrete_sequence=["#4C78A8"])
+            _fmt_x(fig, selected_num)
             fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
             st.plotly_chart(fig, use_container_width=True)
         with col2:
             fig = px.box(cleaned_df, y=selected_num, points="outliers",
                          title=f"Box Plot — {selected_num}",
                          color_discrete_sequence=["#F58518"])
+            _fmt_y(fig, selected_num)
             fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
             st.plotly_chart(fig, use_container_width=True)
 
@@ -216,6 +249,7 @@ with tab_eda:
         fig = px.violin(cleaned_df, y=selected_num, box=True, points="outliers",
                         title=f"Violin — {selected_num}",
                         color_discrete_sequence=["#54A24B"])
+        _fmt_y(fig, selected_num)
         fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=380)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -258,6 +292,8 @@ with tab_eda:
                              trendline="ols",
                              title=f"{x_col} vs {y_col}",
                              opacity=0.7)
+            _fmt_x(fig, x_col)
+            _fmt_y(fig, y_col)
             fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=420)
             st.plotly_chart(fig, use_container_width=True)
 
@@ -289,11 +325,11 @@ with tab_eda:
         with col7:
             top5 = cleaned_df.nlargest(5, ext_col)[[ext_col] + cat_cols[:2]]
             st.markdown(f"**Top 5 — {ext_col}**")
-            st.dataframe(top5, use_container_width=True, hide_index=True)
+            st.dataframe(top5, use_container_width=True, hide_index=True, column_config=_col_config(top5))
         with col8:
             bot5 = cleaned_df.nsmallest(5, ext_col)[[ext_col] + cat_cols[:2]]
             st.markdown(f"**Bottom 5 — {ext_col}**")
-            st.dataframe(bot5, use_container_width=True, hide_index=True)
+            st.dataframe(bot5, use_container_width=True, hide_index=True, column_config=_col_config(bot5))
 
     # ── 8: Correlation Heatmap ─────────────────────────────────────────────────
     if correlations and len(num_cols) >= 2:
@@ -358,6 +394,7 @@ with tab_eda:
         fig = px.box(plot_df, x=grp_cat, y=grp_num, color=grp_cat,
                      title=f"{grp_num} by {grp_cat}",
                      points="outliers")
+        _fmt_y(fig, grp_num)
         fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), showlegend=False, height=420)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -373,6 +410,7 @@ with tab_eda:
         ts_df = cleaned_df[[ts_date, ts_val]].dropna().sort_values(ts_date)
         fig = px.line(ts_df, x=ts_date, y=ts_val, title=f"{ts_val} over time",
                       color_discrete_sequence=["#4C78A8"])
+        _fmt_y(fig, ts_val)
         fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=380)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -444,12 +482,24 @@ with tab_eda:
         with col_db:
             remaining = [c for c in num_cols if c != dens_x]
             dens_y = st.selectbox("Y axis", remaining, key="dens_y")
-        fig = px.density_heatmap(cleaned_df, x=dens_x, y=dens_y,
-                                 color_continuous_scale="Viridis",
-                                 marginal_x="histogram", marginal_y="histogram",
-                                 title=f"2D Density — {dens_x} vs {dens_y}")
-        fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=480)
-        st.plotly_chart(fig, use_container_width=True)
+        col_left, col_right = st.columns([2, 1])
+        with col_left:
+            fig = px.density_heatmap(cleaned_df, x=dens_x, y=dens_y,
+                                     color_continuous_scale="Viridis",
+                                     title=f"2D Density — {dens_x} vs {dens_y}")
+            fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=420)
+            st.plotly_chart(fig, use_container_width=True)
+        with col_right:
+            fig_x = px.histogram(cleaned_df, x=dens_x, nbins=30,
+                                 title=f"{dens_x} distribution",
+                                 color_discrete_sequence=["#4C78A8"])
+            fig_x.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=200)
+            st.plotly_chart(fig_x, use_container_width=True)
+            fig_y = px.histogram(cleaned_df, x=dens_y, nbins=30,
+                                 title=f"{dens_y} distribution",
+                                 color_discrete_sequence=["#F58518"])
+            fig_y.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=200)
+            st.plotly_chart(fig_y, use_container_width=True)
 
     # ── 17: Bubble Chart ──────────────────────────────────────────────────────
     if len(num_cols) >= 3:
@@ -463,9 +513,13 @@ with tab_eda:
         with col_bc:
             bub_sz = st.selectbox("Bubble size", [c for c in num_cols if c not in [bub_x, bub_y]], key="bub_sz")
         bub_color = cat_cols[0] if cat_cols else None
-        fig = px.scatter(cleaned_df, x=bub_x, y=bub_y, size=bub_sz,
+        bub_cols = [bub_x, bub_y, bub_sz] + ([bub_color] if bub_color else [])
+        bub_df = cleaned_df[bub_cols].dropna()
+        fig = px.scatter(bub_df, x=bub_x, y=bub_y, size=bub_sz,
                          color=bub_color, size_max=40, opacity=0.7,
                          title=f"{bub_x} vs {bub_y} (size = {bub_sz})")
+        _fmt_x(fig, bub_x)
+        _fmt_y(fig, bub_y)
         fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=460)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -520,6 +574,7 @@ with tab_eda:
         fig.add_trace(go.Bar(x=grp[err_cat], y=grp["Mean"],
                              error_y=dict(type="data", array=grp["Std"].fillna(0)),
                              marker_color="#4C78A8", name="Mean ± Std"))
+        _fmt_y(fig, err_num)
         fig.update_layout(title=f"Mean ± Std of {err_num} by {err_cat}",
                           xaxis_title=err_cat, yaxis_title=err_num,
                           margin=dict(l=0, r=0, t=40, b=0), height=420)
@@ -539,6 +594,7 @@ with tab_eda:
         fig = px.strip(strip_df, x=strip_cat, y=strip_num, color=strip_cat,
                        title=f"All {strip_num} values by {strip_cat}",
                        stripmode="overlay")
+        _fmt_y(fig, strip_num)
         fig.update_layout(margin=dict(l=0, r=0, t=40, b=0), height=420, showlegend=False)
         st.plotly_chart(fig, use_container_width=True)
 
@@ -595,6 +651,7 @@ with tab_outliers:
                 fig = px.box(plot_df, y=selected, color="Status", points="all",
                              title=f"Box Plot — {selected}",
                              color_discrete_map={"Outlier": "#E45756", "Normal": "#4C78A8"})
+                _fmt_y(fig, selected)
                 fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(fig, use_container_width=True)
             with col_b:
@@ -606,9 +663,11 @@ with tab_outliers:
                               annotation_text="Upper bound")
                 fig.add_hline(y=data["bounds"]["lower"], line_dash="dash", line_color="orange",
                               annotation_text="Lower bound")
+                _fmt_y(fig, selected)
                 fig.update_layout(margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(fig, use_container_width=True)
 
             if iqr_idx:
                 st.markdown(f"**{len(iqr_idx)} flagged rows:**")
-                st.dataframe(cleaned_df.loc[sorted(iqr_idx)], use_container_width=True)
+                flagged_view = cleaned_df.loc[sorted(iqr_idx)]
+                st.dataframe(flagged_view, use_container_width=True, column_config=_col_config(flagged_view))
